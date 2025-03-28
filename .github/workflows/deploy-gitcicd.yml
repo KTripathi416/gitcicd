@@ -1,0 +1,54 @@
+name: Deploy Power BI Reports
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      # Step 1: Check out the repository
+      - name: Checkout Code
+        uses: actions/checkout@v3
+
+      # Step 2: Install PowerShell and Dependencies
+      - name: Install PowerShell
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y powershell
+
+      # Step 3: Deploy Reports to Power BI
+      - name: Deploy Reports
+        env:
+          CLIENT_ID: ${{ secrets.CLIENT_ID }}
+          CLIENT_SECRET: ${{ secrets.CLIENT_SECRET }}
+          TENANT_ID: ${{ secrets.TENANT_ID }}
+          WORKSPACE_ID: ${{ secrets.WORKSPACE_ID }}
+        run: |
+          pwsh -Command "
+          $clientId = '${{ secrets.CLIENT_ID }}'
+          $clientSecret = '${{ secrets.CLIENT_SECRET }}'
+          $tenantId = '${{ secrets.TENANT_ID }}'
+          $workspaceId = '${{ secrets.WORKSPACE_ID }}'
+
+          # Authenticate with Power BI
+          $tokenResponse = Invoke-RestMethod -Method Post -Uri https://login.microsoftonline.com/$tenantId/oauth2/v2.0/token `
+            -Body @{
+              client_id = $clientId
+              scope = 'https://graph.microsoft.com/.default'
+              client_secret = $clientSecret
+              grant_type = 'client_credentials'
+            }
+
+          $accessToken = $tokenResponse.access_token
+
+          # Deploy Report
+          Invoke-RestMethod -Method Post -Uri https://api.powerbi.com/v1.0/myorg/groups/$workspaceId/imports?datasetDisplayName=Report1 `
+            -Headers @{Authorization = 'Bearer ' + $accessToken} `
+            -InFile ./Reports/Report1.pbix `
+            -ContentType 'application/octet-stream'
+          "
+
